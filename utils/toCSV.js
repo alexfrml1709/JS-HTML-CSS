@@ -1,7 +1,6 @@
 import { len as strLen} from "../len";
 import { len as arrLen } from "../arrays/len";
 import { keys } from "../objects/keys";
-import { values } from "../objects/values";
 import { join } from "../arrays/join";
 import { push } from "../arrays/push";
 
@@ -21,60 +20,100 @@ export function toCSV(data) {
         throw new TypeError("data должна быть массивом");
     }
 
-    if (arrLen(data) === 0) {
+    const dataLen = arrLen(data);
+
+    if (dataLen === 0) {
         return "";
     }
 
-    const dataLen = arrLen(data);
-    let keysResult = keys(data[0]);
-    let result = join(keysResult) + "\n";
+    let result = "";
+    const keysResult = keys(data[0]);
+    let isValidKeyResult = [];
 
-    function escapeCSV(item) {
-        if (item == null) {
-            return "";
+    for (let i = 0; i < arrLen(keysResult); i++) {
+        if (isValidKey(keysResult[i])) {
+            push(isValidKeyResult, keysResult[i]);
+        } else {
+            throw new TypeError("Ключ не должен быть пуст или содержать запрещенные символы");
         }
-
-        const isString = typeof item === 'string';
-        const str = "" + item;
-        const stringLen = strLen(str);
-        let escapeCSVResult = "";
-        let needsQuotes = false;
-
-        if (isString) {
-            const num = +str;
-            const isNumericString = (stringLen > 0 && num === num);
-        
-            if (isNumericString || str === 'true' || str === 'false' || str === 'null') {
-                needsQuotes = true;
-            }
-        }
-
-        for (let i = 0; i < stringLen; i++) {
-            if (str[i] === ',' || str[i] === '"' || str[i] === '\n') {
-                needsQuotes = true;
-            }
-
-            escapeCSVResult += str[i];
-
-            if (str[i] === '"') {
-                escapeCSVResult += str[i];
-            }
-        }
-
-        return needsQuotes ? '"' + escapeCSVResult + '"' : escapeCSVResult;
     }
 
+    result += join(isValidKeyResult, ",") + "\n";
+
     for (let i = 0; i < dataLen; i++) {
-        const formatedValues = [];
-        const valuesResult = values(data[i]);
-        const valuesResultLen = arrLen(valuesResult);
+        let serializedValueArr = [];
 
-        for (let j = 0; j < valuesResultLen; j++) {
-            push(formatedValues, escapeCSV(valuesResult[j]));
+        for (let j = 0; j < arrLen(keysResult); j++) {
+            const currentKey = keysResult[j];
+            const currentValue = data[i][currentKey];
+            
+            push(serializedValueArr, serializeValue(currentValue));
         }
-
-        result = result + join(formatedValues) + "\n";
+        
+        result += join(serializedValueArr, ",") + "\n";
     }
 
     return result;
+}
+
+
+function isValidKey(key) {
+    if (key === "" || key === null || key === undefined) {
+        return false;
+    }
+
+    for (let i = 0; i < strLen(key); i++) {
+        if (key[i] === ',' || key[i] === '"' || key[i] === '\\' || key[i] === "\n" || key[i] === "\r") {
+            return false;
+        }
+    }
+
+    return true;
+}
+
+
+function serializeValue(value) {
+    let serializeValueResult;
+
+    if (typeof value === "number") {
+        if (Number.isNaN(value) || !Number.isFinite(value)) {
+            serializeValueResult = "null";
+        } else {
+            serializeValueResult = String(value);
+        }
+    } else if (typeof value === "string") {
+        serializeValueResult = '"' + escapeString(value) + '"';
+    } else if (typeof value === "boolean" || value === null) {
+        serializeValueResult = String(value);
+    } else if (typeof value === "undefined") {
+        serializeValueResult = "";
+    } else {
+        throw new TypeError("value не должно быть объектом или массивом");
+    }
+
+    return serializeValueResult;
+}
+
+
+function escapeString(value) {
+    let escapeStringResult = "";
+    const valueLen = strLen(value);
+
+    for (let i = 0; i < valueLen; i++) {
+        if (value[i] === '"') {
+            escapeStringResult = escapeStringResult + '\\' + value[i];
+        } else if (value[i] === "\\") {
+            escapeStringResult = escapeStringResult + '\\\\';
+        } else if (value[i] === "\n") {
+            escapeStringResult = escapeStringResult + '\\n';
+        } else if (value[i] === "\t") {
+            escapeStringResult = escapeStringResult + '\\t';
+        } else if (value[i] === "\r") {
+            escapeStringResult = escapeStringResult + '\\r';
+        } else {
+            escapeStringResult += value[i];
+        }
+    }
+
+    return escapeStringResult;
 }
